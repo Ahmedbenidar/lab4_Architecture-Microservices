@@ -1,0 +1,79 @@
+[WARN] HHH10001002: Using Hibernate built-in connection pool (not for production use!)
+==========================================================================================
+ TP 4 - Hibernate et persistance des données
+ Mapping objet-relationnel, DAO générique et requêtes HQL
+==========================================================================================
+ JDK          : 25.0.2 (Eclipse Adoptium)
+ Hibernate    : 5.6.15.Final
+ Base         : jdbc:mysql://localhost:3306/db_tp_hibernate?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
+==========================================================================================
+
+[0] Purge des données précédentes
+--------------------------------------------------------------------------------
+  [OK]    Table salles vidée                             | 0 salle(s)
+  [OK]    Table machines vidée                           | 0 machine(s)
+
+[1] Création des salles puis des machines (clé étrangère salle_id)
+--------------------------------------------------------------------------------
+  -> Salle#1 S1 "Salle Informatique" créée=true
+  -> Salle#2 S2 "Salle Réseau" créée=true
+  -> Salle#3 S3 "Salle Électronique" créée=true
+  -> Machine#1 PC-001 (Dell) -> salle S1
+  -> Machine#2 PC-002 (HP) -> salle S1
+  -> Machine#3 PC-003 (Dell) -> salle S2
+  -> Machine#4 PC-004 (Lenovo) -> salle S3
+  [OK]    Identifiants générés par la base               | S1=1, PC-004=4
+  [OK]    3 salles persistées                            | 3 salle(s)
+  [OK]    4 machines persistées                          | 4 machine(s)
+  [OK]    Machine reliée à sa salle en base              | S1 contient 2 machine(s)
+
+[2] Lecture par identifiant, mise à jour et changement d'affectation
+--------------------------------------------------------------------------------
+  getById(1)   -> Salle#1 S1 "Salle Informatique"
+  deplacer PC-002 vers S3 -> true
+  [OK]    Lecture par clé primaire                       | code lu = S1
+  [OK]    Mise à jour du libellé                         | "Salle Informatique - rénovée 2025"
+  [OK]    Changement de salle pris en compte             | S1=1, S3=2
+
+[3] Requêtes HQL : recherche paramétrée, agrégations, jointure
+--------------------------------------------------------------------------------
+  findByMarque("dell") -> PC-001, PC-003
+  repartition par salle -> S1=1 | S2=1 | S3=2
+  S1  "Salle Informatique - rénovée 2025"      1 machine(s) chargée(s) par join fetch
+  S2  "Salle Réseau"                           1 machine(s) chargée(s) par join fetch
+  S3  "Salle Électronique"                     2 machine(s) chargée(s) par join fetch
+  salleLaPlusEquipee() -> S3 (2 machines)
+  [OK]    Recherche HQL insensible à la casse            | 2 machine(s) de marque Dell
+  [OK]    Agrégation group by                            | S3 = 2 machine(s)
+  [OK]    Jointure chargée en une requête                | 3 salle(s) avec collection initialisée
+  [OK]    Tri par agrégat                                | S3
+
+[4] Validation métier et rollback sur violation de contrainte
+--------------------------------------------------------------------------------
+  service.create("S1") -> rejet : Le code de salle S1 est déjà utilisé
+  [OK]    Code de salle unique (service)                 | Le code de salle S1 est déjà utilisé
+[WARN] SQL Error: 1062, SQLState: 23000
+[ERROR] Duplicate entry 'S1' for key 'uk_salle_code'
+[DAO] Rollback délaissé (IllegalStateException) : la transaction a déjà été annulée par Hibernate
+[DAO] Échec pendant la création de Salle#0 S1 "Doublon tenté en direct" : Duplicate entry 'S1' for key 'uk_salle_code'
+  [OK]    Contrainte SQL uk_salle_code + rollback        | insertion=false, salles=3
+  machine sans salle -> rejet : Une machine doit être rattachée à une salle persistée
+  [OK]    Machine toujours rattachée à une salle         | Une machine doit être rattachée à une salle persistée
+[WARN] SQL Error: 1452, SQLState: 23000
+[ERROR] Cannot add or update a child row: a foreign key constraint fails (`db_tp_hibernate`.`machines`, CONSTRAINT `FKquovysu2pi8pvqec0isp62e4r` FOREIGN KEY (`salle_id`) REFERENCES `salles` (`id`))
+[DAO] Rollback délaissé (IllegalStateException) : la transaction a déjà été annulée par Hibernate
+[DAO] Échec pendant la création de Machine#0 PC-999 (Asus) -> salle SX : Cannot add or update a child row: a foreign key constraint fails (`db_tp_hibernate`.`machines`, CONSTRAINT `FKquovysu2pi8pvqec0isp62e4r` FOREIGN KEY (`salle_id`) REFERENCES `salles` (`id`))
+  [OK]    Clé étrangère salle_id appliquée               | insertion=false, machines=4
+
+[5] Suppression d'une salle et cascade sur ses machines
+--------------------------------------------------------------------------------
+  delete(S3) -> true ; machines avant=4, après=2
+  [OK]    Salle supprimée                                | parCode("S3") = null
+  [OK]    Machines de S3 supprimées en cascade           | 4 -> 2 machine(s)
+  [OK]    Machines restantes rattachées aux bonnes salles | S1=1, S2=1
+  [OK]    Nombre final de salles                         | 2 salle(s)
+
+==========================================================================================
+ BILAN : 21 vérification(s) conforme(s) sur 21
+ État du projet : toutes les couches (entités, DAO, services) fonctionnent.
+==========================================================================================
